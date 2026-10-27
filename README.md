@@ -82,3 +82,48 @@ Data will be lost when the server restarts.
 
 Day 8: Initial Cards API implementation.
 Day 9: Automated API tests with pytest (planned).
+
+## API Usage Examples
+
+### Create a Card
+
+Send a POST request to `/cards` with the following JSON body:
+
+```json
+{
+  "title": "Implement API tests",
+  "description": "Write automated tests using pytest"
+}
+```
+
+A successful request returns HTTP 201 with a generated card ID and the initial status `spec`.
+
+### Retrieve Cards
+
+Use `GET /cards` to retrieve all existing cards.
+
+Use `GET /cards/{card_id}` to retrieve a specific card.
+
+### Update a Card
+
+Send a PATCH request to `/cards/{card_id}`:
+
+```json
+{
+  "status": "ready"
+}
+```
+
+Status changes must follow the allowed workflow. Invalid transitions return HTTP 409 Conflict.
+
+### Delete a Card
+
+Send a DELETE request to `/cards/{card_id}`.
+
+A successful deletion returns HTTP 204 No Content.
+
+### Interactive Documentation
+
+All endpoints can be explored and tested using Swagger UI:
+
+http://127.0.0.1:8000/docs
