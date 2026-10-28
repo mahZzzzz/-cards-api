@@ -1,0 +1,213 @@
+
+:root {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    color: #243047;
+    background: #f4f6fb;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+}
+
+header {
+    padding: 32px 40px;
+    background: #ffffff;
+    border-bottom: 1px solid #e5e9f1;
+}
+
+header h1 {
+    margin: 0 0 8px;
+    font-size: 30px;
+}
+
+header p {
+    margin: 0 0 20px;
+    color: #718096;
+}
+
+button {
+    border: none;
+    border-radius: 9px;
+    padding: 12px 18px;
+    background: #635bdb;
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+button:hover {
+    background: #5148bd;
+}
+
+main {
+    padding: 32px 24px;
+}
+
+.board {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(220px, 1fr));
+    gap: 16px;
+    overflow-x: auto;
+    align-items: start;
+}
+
+.column {
+    background: #e9edf5;
+    border-radius: 14px;
+    padding: 16px;
+    min-height: 360px;
+}
+
+.column h2 {
+    margin: 0 0 18px;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.card {
+    background: white;
+    border-radius: 10px;
+    padding: 16px;
+    box-shadow: 0 2px 7px rgba(0, 0, 0, 0.05);
+}
+
+.card h3 {
+    margin: 0 0 8px;
+    font-size: 15px;
+}
+
+.card p {
+    margin: 0;
+    font-size: 13px;
+    color: #718096;
+    line-height: 1.5;
+}
+
+@media (max-width: 700px) {
+    header {
+        padding: 24px;
+    }
+
+    main {
+        padding: 20px 12px;
+    }
+}
+
+/* Add Card Modal */
+
+.modal[hidden] {
+    display: none;
+}
+
+.modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 30, 50, 0.55);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: white;
+    padding: 30px;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 480px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+}
+
+.modal-content h2 {
+    margin: 0 0 24px;
+    font-size: 22px;
+}
+
+#card-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+#card-form label {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+#card-form input,
+#card-form textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #d5dbe7;
+    border-radius: 8px;
+    font: inherit;
+}
+
+#card-form input:focus,
+#card-form textarea:focus {
+    outline: 2px solid #635bdb;
+    border-color: #635bdb;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+#cancel-card-btn {
+    background: #e9edf5;
+    color: #243047;
+}
+
+#cancel-card-btn:hover {
+    background: #dce2ed;
+}
+
+
+/* Edit Card Form */
+
+#edit-card-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+#edit-card-form label {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+#edit-card-form input,
+#edit-card-form textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #d5dbe7;
+    border-radius: 8px;
+    font: inherit;
+}
+
+#edit-card-form input:focus,
+#edit-card-form textarea:focus {
+    outline: 2px solid #635bdb;
+    border-color: #635bdb;
+}
+
+#cancel-edit-btn {
+    background: #e9edf5;
+    color: #243047;
+}
