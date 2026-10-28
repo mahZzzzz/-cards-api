@@ -1,0 +1,162 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cards Board</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>Cards Board</h1>
+        
+<p id="api-status" aria-live="polite">
+    Checking API connection...
+</p>
+
+        <p>Manage your project tasks in one place.</p>
+        <button id="add-card-btn">+ Add Card</button>
+    </header>
+
+
+    
+    <!-- Add Card Modal -->
+    <div id="card-modal" class="modal" hidden>
+        <div class="modal-content">
+            <h2>Create New Card</h2>
+
+            <form id="card-form">
+                <label for="card-title">Title</label>
+                <input
+                    type="text"
+                    id="card-title"
+                    maxlength="100"
+                    required
+                    placeholder="Enter card title"
+                >
+
+                <label for="card-description">Description</label>
+                <textarea
+                    id="card-description"
+                    maxlength="1000"
+                    rows="4"
+                    placeholder="Enter card description"
+                ></textarea>
+
+                <div class="modal-actions">
+                    <button type="button" id="cancel-card-btn">
+                        Cancel
+                    </button>
+                    <button type="submit">
+                        Create Card
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    
+<!-- Card Details Modal -->
+<div id="details-modal" class="modal" hidden>
+    <div class="modal-content">
+        <h2>Card Details</h2>
+
+        <p><strong>ID:</strong> <span id="detail-id"></span></p>
+        <p><strong>Title:</strong> <span id="detail-title"></span></p>
+        <p><strong>Description:</strong> <span id="detail-description"></span></p>
+        <p><strong>Status:</strong> <span id="detail-status"></span></p>
+
+        
+<div class="modal-actions">
+    <button type="button" id="edit-card-btn">
+        Edit
+    </button>
+
+    <button type="button" id="next-stage-btn">
+        Next Stage
+    </button>
+
+    <button type="button" id="delete-card-btn">
+        Delete
+    </button>
+
+    <button type="button" id="close-details-btn">
+        Close
+    </button>
+</div>
+
+    </div>
+</div>
+
+
+<!-- Edit Card Modal -->
+<div id="edit-modal" class="modal" hidden>
+    <div class="modal-content">
+        <h2>Edit Card</h2>
+
+        <form id="edit-card-form">
+            <label for="edit-card-title">Title</label>
+            <input
+                type="text"
+                id="edit-card-title"
+                minlength="1"
+                maxlength="100"
+                required
+            >
+
+            <label for="edit-card-description">Description</label>
+            <textarea
+                id="edit-card-description"
+                maxlength="1000"
+                rows="4"
+            ></textarea>
+
+            <div class="modal-actions">
+                <button type="button" id="cancel-edit-btn">
+                    Cancel
+                </button>
+
+                <button type="submit">
+                    Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+
+    <main>
+        <section class="board">
+            <div class="column" id="spec">
+                <h2>Specification</h2>
+                <div class="card-list"></div>
+            </div>
+
+            <div class="column" id="ready">
+                <h2>Ready</h2>
+                <div class="card-list"></div>
+            </div>
+
+            <div class="column" id="in_progress">
+                <h2>In Progress</h2>
+                <div class="card-list"></div>
+            </div>
+
+            <div class="column" id="review">
+                <h2>Review</h2>
+                <div class="card-list"></div>
+            </div>
+
+            <div class="column" id="done">
+                <h2>Done</h2>
+                <div class="card-list"></div>
+            </div>
+        </section>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
