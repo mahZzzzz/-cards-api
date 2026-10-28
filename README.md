@@ -127,3 +127,57 @@ A successful deletion returns HTTP 204 No Content.
 All endpoints can be explored and tested using Swagger UI:
 
 http://127.0.0.1:8000/docs
+
+
+## Automated Testing (Day 9)
+
+The Cards API includes automated tests using pytest
+and FastAPI TestClient.
+
+### Test Coverage
+
+- Total automated tests: 16
+- Tests passed: 16
+- Code coverage: 100%
+- Testing framework: pytest
+- Coverage tool: coverage.py
+
+### Tested Features
+
+- Root and health check endpoints
+- Creating and listing cards
+- Retrieving individual cards
+- Updating card information and status
+- Deleting cards
+- Handling nonexistent cards (404)
+- Rejecting illegal status transitions (409)
+- Validating invalid input (422)
+- Complete card status workflow
+- Rejecting null and invalid status values
+
+### Running Tests
+
+Install project dependencies:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+Run all automated tests:
+
+```bash
+python -m pytest tests/test_cards.py -v
+```
+
+Run tests with coverage:
+
+```bash
+python -m coverage run --source=app -m pytest tests/test_cards.py -v
+python -m coverage report -m
+```
+
+### Test Isolation
+
+An automatic pytest fixture resets the in-memory
+card storage before each test to prevent tests
+from interfering with each other.
