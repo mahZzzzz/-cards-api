@@ -1,4 +1,3 @@
-
 from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -29,3 +28,25 @@ class CardRead(BaseModel):
     title: str
     description: str
     status: CardStatus
+
+
+class Comment(BaseModel):
+    author: str = Field(min_length=1)
+    text: str = Field(min_length=1)
+
+
+class CommentCreate(Comment):
+    pass
+
+
+class CommentRead(Comment):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    card_id: int
+
+
+# Backwards/alternative aliases used by callers and tests
+CommentIn = CommentCreate
+CommentOut = CommentRead
+CommentModel = Comment
