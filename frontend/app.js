@@ -136,6 +136,15 @@ async function showCardDetails(cardId) {
         document.getElementById("detail-status").textContent =
             card.status.replaceAll("_", " ");
 
+            
+        document.getElementById("detail-assignee").textContent =
+            card.assignee || "Unassigned";
+
+        document.getElementById("assignee-input").value =
+            card.assignee || "";
+
+
+            await loadComments(card.id);
         detailsModal.hidden = false;
 
     } catch (error) {
@@ -143,6 +152,69 @@ async function showCardDetails(cardId) {
         alert("Could not load card details.");
     }
 }
+
+
+const saveAssigneeButton = document.getElementById("save-assignee-btn");
+
+saveAssigneeButton.addEventListener("click", async () => {
+    const cardId = detailsModal.dataset.cardId;
+    const assignee = document.getElementById("assignee-input").value.trim();
+
+    if (!assignee) {
+        alert("Please enter a valid assignee name.");
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_URL}/cards/${cardId}`, {
+            method: "PATCH",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ assignee })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error: ${response.status}`);
+        }
+
+        await showCardDetails(cardId);
+        await loadCards();
+
+    } catch (error) {
+        console.error("Failed to assign card:", error);
+        alert("Could not save the assignment.");
+    }
+});
+
+
+const removeAssigneeButton = document.getElementById("remove-assignee-btn");
+
+removeAssigneeButton.addEventListener("click", async () => {
+    const cardId = detailsModal.dataset.cardId;
+
+    try {
+        const response = await fetch(`${API_URL}/cards/${cardId}`, {
+            method: "PATCH",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ assignee: null })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error: ${response.status}`);
+        }
+
+        await showCardDetails(cardId);
+        await loadCards();
+
+    } catch (error) {
+        console.error("Failed to remove assignee:", error);
+        alert("Could not remove the assignment.");
+    }
+});
+
 
 // Close details window
 closeDetailsButton.addEventListener("click", () => {
@@ -353,4 +425,90 @@ async function checkApiHealth() {
 }
 
 document.addEventListener("DOMContentLoaded", checkApiHealth);
+
+
+async function loadComments(cardId) {
+    const commentsList = document.getElementById("comments-list");
+
+    try {
+        const response = await fetch(
+            `${API_URL}/cards/${cardId}/comments`
+        );
+
+        if (!response.ok) {
+            throw new Error(`HTTP error: ${response.status}`);
+        }
+
+        const comments = await response.json();
+
+        commentsList.replaceChildren();
+
+        if (comments.length === 0) {
+            const message = document.createElement("p");
+            message.textContent = "No comments yet.";
+            commentsList.appendChild(message);
+            return;
+        }
+
+        comments.forEach((comment) => {
+            const item = document.createElement("div");
+            item.className = "comment-item";
+
+            const author = document.createElement("strong");
+            author.textContent = comment.author;
+
+            const text = document.createElement("p");
+            text.textContent = comment.text;
+
+            item.appendChild(author);
+            item.appendChild(text);
+            commentsList.appendChild(item);
+        });
+
+    } catch (error) {
+        console.error("Failed to load comments:", error);
+        commentsList.textContent = "Could not load comments.";
+    }
+}
+
+
+const commentForm = document.getElementById("comment-form");
+
+commentForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const cardId = detailsModal.dataset.cardId;
+    const author = document.getElementById("comment-author").value.trim();
+    const text = document.getElementById("comment-text").value.trim();
+
+    if (!cardId || !author || !text) {
+        alert("Please enter your name and a comment.");
+        return;
+    }
+
+    try {
+        const response = await fetch(
+            `${API_URL}/cards/${cardId}/comments`,
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ author, text })
+            }
+        );
+
+        if (!response.ok) {
+            throw new Error(`HTTP error: ${response.status}`);
+        }
+
+        document.getElementById("comment-text").value = "";
+        await loadComments(cardId);
+
+    } catch (error) {
+        console.error("Failed to add comment:", error);
+        alert("Could not add the comment.");
+    }
+});
+
 
