@@ -67,7 +67,8 @@ async def create_card(card: CardCreate):
         id=next_card_id,
         title=card.title,
         description=card.description,
-        status=CardStatus.SPEC
+        status=CardStatus.SPEC,
+        assignee=card.assignee
     )
 
     cards[next_card_id] = new_card
