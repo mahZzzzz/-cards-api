@@ -286,3 +286,71 @@ main {
     overflow-y: auto;
     box-sizing: border-box;
 }
+
+
+/* PRD Upload Section */
+.prd-upload-section {
+  max-width: 1200px;
+  margin: 24px auto;
+  padding: 28px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+}
+
+.prd-upload-section h2 {
+  margin-top: 0;
+  color: #1e293b;
+}
+
+#prd-upload-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 20px;
+}
+
+#prd-generate-btn {
+  padding: 12px 20px;
+  border-radius: 10px;
+}
+
+#prd-upload-status {
+  margin-top: 16px;
+  font-weight: 500;
+}
+
+#prd-draft-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.prd-draft-card {
+  padding: 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.prd-draft-card h4 {
+  margin: 0 0 12px;
+  color: #1e293b;
+}
+
+.prd-draft-card p {
+  color: #475569;
+  line-height: 1.6;
+}
+
+.prd-draft-card small {
+  color: #64748b;
+}
+
+#prd-ambiguities {
+  line-height: 1.8;
+}

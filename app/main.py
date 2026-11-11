@@ -2,6 +2,15 @@ from fastapi import FastAPI, HTTPException, status
 from app.models import CardCreate, CardRead, CardStatus, CardUpdate, CommentCreate, CommentRead
 from fastapi.middleware.cors import CORSMiddleware
 
+import tempfile
+from pathlib import Path
+
+from fastapi import File, UploadFile
+from starlette.concurrency import run_in_threadpool
+
+from prd_service import generate_prd_breakdown
+from schemas import Breakdown
+
 app = FastAPI(
     title="Cards API",
     description="A REST API for managing cards",
@@ -18,7 +27,7 @@ app.add_middleware(
         "http://127.0.0.1:5500",
     ],
     allow_credentials=False,
-    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type"],
 )
 
@@ -225,3 +234,61 @@ async def list_comments(card_id: int):
         )
 
     return [comment for comment in comments.values() if comment.card_id == card_id]
+
+
+
+@app.post("/prd/preview", response_model=Breakdown)
+async def preview_prd(
+    file: UploadFile = File(...),
+    use_ocr: bool = False,
+):
+    """Upload a PDF and generate draft cards without saving them."""
+
+    max_file_size = 10 * 1024 * 1024  # 10 MB
+
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=400,
+            detail="Please upload a PDF file."
+        )
+
+    try:
+        content = await file.read(max_file_size + 1)
+    finally:
+        await file.close()
+
+    if len(content) > max_file_size:
+        raise HTTPException(
+            status_code=413,
+            detail="PDF is too large. Maximum size is 10 MB."
+        )
+
+    if not content.startswith(b"%PDF-"):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid PDF file."
+        )
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        pdf_path = Path(temp_dir) / "uploaded.pdf"
+        pdf_path.write_bytes(content)
+
+        try:
+            
+            breakdown = await run_in_threadpool(
+                generate_prd_breakdown,
+                str(pdf_path),
+                use_ocr,
+                existing_cards=[
+                    card.model_dump()
+                    for card in cards.values()
+                ],
+            )
+
+        except ValueError as error:
+            raise HTTPException(
+                status_code=422,
+                detail=str(error)
+            ) from error
+
+    return breakdown

@@ -512,3 +512,214 @@ commentForm.addEventListener("submit", async (event) => {
 });
 
 
+
+const prdForm = document.getElementById("prd-upload-form");
+const prdFileInput = document.getElementById("prd-file");
+const prdUseOcr = document.getElementById("prd-use-ocr");
+const prdGenerateBtn = document.getElementById("prd-generate-btn");
+const prdStatus = document.getElementById("prd-upload-status");
+const prdResults = document.getElementById("prd-results");
+const prdDraftList = document.getElementById("prd-draft-list");
+const prdAmbiguities = document.getElementById("prd-ambiguities");
+
+prdForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const file = prdFileInput.files[0];
+
+  if (!file) {
+    prdStatus.textContent = "Please select a PDF file.";
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  prdGenerateBtn.disabled = true;
+  prdStatus.textContent = "Analyzing PDF and generating cards...";
+  prdResults.hidden = true;
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:8000/prd/preview?use_ocr=${prdUseOcr.checked}`,
+      {
+        method: "POST",
+        body: formData
+      }
+    );
+
+    if (!response.ok) {
+      let message = `Server error: ${response.status}`;
+
+      try {
+        const error = await response.json();
+        if (typeof error.detail === "string") {
+          message = error.detail;
+        }
+      } catch (_) {}
+
+      throw new Error(message);
+    }
+
+    const breakdown = await response.json();
+
+    prdDraftList.replaceChildren();
+    prdAmbiguities.replaceChildren();
+
+    
+    for (const card of breakdown.cards) {
+      const element = document.createElement("article");
+      element.className = "prd-draft-card";
+      element.dataset.card = JSON.stringify(card);
+
+      // Checkbox for selecting the card
+      const selectLabel = document.createElement("label");
+      selectLabel.className = "prd-card-select";
+
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.className = "prd-card-checkbox";
+
+      selectLabel.append(checkbox, " Select this card");
+
+      // Card title
+      const title = document.createElement("h4");
+      title.textContent = card.title;
+
+      // Card goal
+      const goal = document.createElement("p");
+      goal.textContent = card.goal;
+
+      // Source section
+      const source = document.createElement("small");
+      source.textContent = `Source: ${card.prd_section}`;
+
+      element.append(selectLabel, title, goal, source);
+      prdDraftList.appendChild(element);
+    }
+
+    for (const ambiguity of breakdown.ambiguities) {
+      const item = document.createElement("li");
+      item.textContent = ambiguity;
+      prdAmbiguities.appendChild(item);
+    }
+
+    prdResults.hidden = false;
+    prdStatus.textContent =
+      `${breakdown.cards.length} draft cards generated successfully.`;
+
+  } catch (error) {
+    prdStatus.textContent = `Error: ${error.message}`;
+  } finally {
+    prdGenerateBtn.disabled = false;
+  }
+});
+
+
+/* Select All Suggested Cards */
+
+const prdSelectAllBtn = document.getElementById("prd-select-all-btn");
+
+prdSelectAllBtn.addEventListener("click", () => {
+    const checkboxes = document.querySelectorAll(
+        ".prd-card-checkbox"
+    );
+
+    const allSelected =
+        checkboxes.length > 0 &&
+        Array.from(checkboxes).every(checkbox => checkbox.checked);
+
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = !allSelected;
+    });
+
+    prdSelectAllBtn.textContent = allSelected
+        ? "Select All"
+        : "Deselect All";
+});
+
+
+/* Add Selected Draft Cards to the Board */
+
+const prdAddSelectedBtn = document.getElementById(
+  "prd-add-selected-btn"
+);
+
+prdAddSelectedBtn.addEventListener("click", async () => {
+  const selectedCheckboxes = document.querySelectorAll(
+    ".prd-card-checkbox:checked"
+  );
+
+  if (selectedCheckboxes.length === 0) {
+    alert("Please select at least one card.");
+    return;
+  }
+
+  const confirmed = confirm(
+    `Add ${selectedCheckboxes.length} selected cards to the board?`
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  prdAddSelectedBtn.disabled = true;
+
+  let addedCount = 0;
+  let failedCount = 0;
+
+  try {
+    for (const checkbox of selectedCheckboxes) {
+      const element = checkbox.closest(".prd-draft-card");
+      const card = JSON.parse(element.dataset.card);
+
+      const description = [
+        `Goal: ${card.goal}`,
+        "",
+        "Acceptance Criteria:",
+        ...card.acceptance_criteria.map(
+          criterion => `- ${criterion}`
+        ),
+        "",
+        `Dependencies: ${card.dependencies.join(", ") || "None"}`,
+        `Source: ${card.prd_section}`
+      ].join("\n").slice(0, 1000);
+
+      try {
+        const response = await fetch(`${API_URL}/cards`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            title: card.title.trim(),
+            description: description
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        addedCount++;
+        element.remove();
+
+      } catch (error) {
+        failedCount++;
+        console.error("Failed to add draft card:", error);
+      }
+    }
+
+    await loadCards();
+
+    prdStatus.textContent =
+      `${addedCount} cards added to the board. ` +
+      `${failedCount} cards failed.`;
+
+    prdSelectAllBtn.textContent = "Select All";
+
+  } finally {
+    prdAddSelectedBtn.disabled = false;
+  }
+});
+

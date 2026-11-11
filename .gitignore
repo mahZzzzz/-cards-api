@@ -24,3 +24,5 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+extracted_*.txt
+sample_prds/
