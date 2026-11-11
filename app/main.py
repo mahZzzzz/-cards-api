@@ -11,6 +11,9 @@ from starlette.concurrency import run_in_threadpool
 from prd_service import generate_prd_breakdown
 from schemas import Breakdown
 
+from pydantic import BaseModel
+from assistant_service import answer_board_question
+
 app = FastAPI(
     title="Cards API",
     description="A REST API for managing cards",
@@ -292,3 +295,34 @@ async def preview_prd(
             ) from error
 
     return breakdown
+
+
+class AssistantMessage(BaseModel):
+    message: str
+
+
+class AssistantReply(BaseModel):
+    reply: str
+
+
+@app.post("/assistant/chat", response_model=AssistantReply)
+async def assistant_chat(request: AssistantMessage):
+    if not request.message.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="Message cannot be empty",
+        )
+
+    current_cards = [
+        card.model_dump(mode="json")
+        for card in cards.values()
+    ]
+
+    reply = await run_in_threadpool(
+        answer_board_question,
+        request.message,
+        current_cards,
+    )
+
+    return AssistantReply(reply=reply)
+

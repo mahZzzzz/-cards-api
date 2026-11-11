@@ -145,3 +145,31 @@ def structured_completion(
         "All models failed to generate a valid structured response:\n"
         + "\n".join(errors)
     )
+
+
+# Tool definition sent to the language model
+SEARCH_CARDS_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "search_cards",
+        "description": (
+            "Search the current project board for cards. "
+            "Use an empty query to list all cards."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": (
+                        "Optional text to search for in card titles "
+                        "and descriptions."
+                    ),
+                }
+            },
+            "required": ["query"],
+            "additionalProperties": False,
+        },
+    },
+}
+

@@ -111,6 +111,51 @@
             </div>
 
         </section>
+        
+        
+        <!-- AI Board Assistant -->
+        <section id="assistant-section" class="assistant-section">
+            <h2>Cards Board Assistant</h2>
+
+            <p>
+                Ask questions about your project cards.
+            </p>
+
+            <div
+                id="assistant-messages"
+                class="assistant-messages"
+                role="log"
+                aria-live="polite"
+            ></div>
+
+            <form id="assistant-chat-form">
+                <label for="assistant-input">
+                    Your message
+                </label>
+
+                <div class="assistant-input-row">
+                    <input
+                        type="text"
+                        id="assistant-input"
+                        placeholder="Ask about your board..."
+                        required
+                    >
+
+                    <button
+                        type="submit"
+                        id="assistant-send-btn"
+                    >
+                        Send
+                    </button>
+                </div>
+            </form>
+
+            <p
+                id="assistant-status"
+                role="status"
+                aria-live="polite"
+            ></p>
+        </section>
 
 
         <!-- Kanban Board -->

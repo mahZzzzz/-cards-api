@@ -723,3 +723,73 @@ prdAddSelectedBtn.addEventListener("click", async () => {
   }
 });
 
+
+
+/* AI Board Assistant Chat */
+
+const assistantChatForm = document.getElementById("assistant-chat-form");
+const assistantInput = document.getElementById("assistant-input");
+const assistantMessages = document.getElementById("assistant-messages");
+const assistantStatus = document.getElementById("assistant-status");
+const assistantSendBtn = document.getElementById("assistant-send-btn");
+
+function appendAssistantMessage(text, sender) {
+    const message = document.createElement("div");
+
+    message.className = `assistant-message ${sender}`;
+    message.textContent = text;
+
+    assistantMessages.appendChild(message);
+    assistantMessages.scrollTop = assistantMessages.scrollHeight;
+}
+
+assistantChatForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const question = assistantInput.value.trim();
+
+    if (!question) {
+        return;
+    }
+
+    appendAssistantMessage(question, "user");
+
+    assistantInput.value = "";
+    assistantInput.disabled = true;
+    assistantSendBtn.disabled = true;
+    assistantStatus.textContent = "Assistant is thinking...";
+
+    try {
+        const response = await fetch(`${API_URL}/assistant/chat`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                message: question
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        appendAssistantMessage(data.reply, "bot");
+        assistantStatus.textContent = "";
+
+    } catch (error) {
+        appendAssistantMessage(
+            "Sorry, I couldn't process your message. Please try again.",
+            "bot"
+        );
+
+        assistantStatus.textContent = `Error: ${error.message}`;
+
+    } finally {
+        assistantInput.disabled = false;
+        assistantSendBtn.disabled = false;
+        assistantInput.focus();
+    }
+});
