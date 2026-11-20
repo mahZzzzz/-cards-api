@@ -733,6 +733,18 @@ const assistantMessages = document.getElementById("assistant-messages");
 const assistantStatus = document.getElementById("assistant-status");
 const assistantSendBtn = document.getElementById("assistant-send-btn");
 
+// Only one proposal may be waiting for a decision at a time.
+let pendingProposal = null;
+
+function setAssistantChatEnabled(enabled) {
+    assistantInput.disabled = !enabled;
+    assistantSendBtn.disabled = !enabled;
+
+    if (enabled) {
+        assistantInput.focus();
+    }
+}
+
 function appendAssistantMessage(text, sender) {
     const message = document.createElement("div");
 
@@ -743,8 +755,205 @@ function appendAssistantMessage(text, sender) {
     assistantMessages.scrollTop = assistantMessages.scrollHeight;
 }
 
+async function readApiError(response) {
+    let message = `HTTP ${response.status}`;
+
+    try {
+        const data = await response.json();
+
+        if (typeof data.detail === "string") {
+            message = data.detail;
+        } else if (Array.isArray(data.detail)) {
+            message = data.detail
+                .map(item => item.msg || JSON.stringify(item))
+                .join("; ");
+        }
+    } catch (_) {
+        // Keep the status-based message.
+    }
+
+    return message;
+}
+
+function describeProposal(proposal) {
+    if (proposal.action === "create_card") {
+        return `Create a card titled "${proposal.title}".`;
+    }
+
+    if (proposal.action === "move_card") {
+        const status = String(proposal.status).replaceAll("_", " ");
+        return `Move card #${proposal.card_id} to "${status}".`;
+    }
+
+    if (proposal.action === "add_comment") {
+        return (
+            `Add a comment by ${proposal.author} ` +
+            `to card #${proposal.card_id}.`
+        );
+    }
+
+    return "Apply this proposed change.";
+}
+
+async function submitProposal(proposal) {
+    let url = `${API_URL}/cards`;
+    let method = "POST";
+    let body = {};
+
+    if (proposal.action === "create_card") {
+        body = {
+            title: proposal.title,
+            description: proposal.description || ""
+        };
+
+        if (proposal.assignee) {
+            body.assignee = proposal.assignee;
+        }
+
+    } else if (proposal.action === "move_card") {
+        url = `${API_URL}/cards/${proposal.card_id}`;
+        method = "PATCH";
+        body = { status: proposal.status };
+
+    } else if (proposal.action === "add_comment") {
+        url = `${API_URL}/cards/${proposal.card_id}/comments`;
+        method = "POST";
+        body = {
+            author: proposal.author,
+            text: proposal.text
+        };
+
+    } else {
+        throw new Error("Unsupported proposal.");
+    }
+
+    const response = await fetch(url, {
+        method: method,
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+        throw new Error(await readApiError(response));
+    }
+}
+
+function renderProposal(proposal) {
+    const element = document.createElement("div");
+    element.className = "assistant-proposal";
+
+    const heading = document.createElement("h4");
+    heading.textContent = "Confirm this change";
+
+    const description = document.createElement("p");
+    description.textContent = describeProposal(proposal);
+
+    const errorMessage = document.createElement("p");
+    errorMessage.className = "proposal-error";
+    errorMessage.hidden = true;
+
+    const actions = document.createElement("div");
+    actions.className = "assistant-proposal-actions";
+
+    const confirmButton = document.createElement("button");
+    confirmButton.type = "button";
+    confirmButton.textContent = "Confirm";
+
+    const cancelButton = document.createElement("button");
+    cancelButton.type = "button";
+    cancelButton.className = "secondary";
+    cancelButton.textContent = "Cancel";
+
+    actions.append(confirmButton, cancelButton);
+    element.append(heading, description, errorMessage, actions);
+    assistantMessages.appendChild(element);
+    assistantMessages.scrollTop = assistantMessages.scrollHeight;
+
+    pendingProposal = proposal;
+    setAssistantChatEnabled(false);
+    assistantStatus.textContent =
+        "Review the proposed change, then Confirm or Cancel.";
+
+    confirmButton.addEventListener("click", async () => {
+        if (pendingProposal !== proposal) {
+            return;
+        }
+
+        confirmButton.disabled = true;
+        cancelButton.disabled = true;
+        errorMessage.hidden = true;
+        assistantStatus.textContent = "Saving the confirmed change...";
+
+        try {
+            await submitProposal(proposal);
+
+            pendingProposal = null;
+
+            element.classList.add("confirmed");
+            heading.textContent = "Change confirmed";
+            actions.replaceChildren();
+
+            const result = document.createElement("p");
+            result.className = "proposal-result";
+            result.textContent = "The board was updated successfully.";
+            element.appendChild(result);
+
+            assistantStatus.textContent = "Change saved.";
+
+            await loadCards();
+
+            if (
+                !detailsModal.hidden &&
+                proposal.action !== "create_card" &&
+                String(detailsModal.dataset.cardId) ===
+                    String(proposal.card_id)
+            ) {
+                await showCardDetails(Number(proposal.card_id));
+            }
+
+            setAssistantChatEnabled(true);
+
+        } catch (error) {
+            errorMessage.textContent =
+                `Could not apply the change: ${error.message}`;
+            errorMessage.hidden = false;
+            assistantStatus.textContent = "The change was not saved.";
+
+            confirmButton.disabled = false;
+            cancelButton.disabled = false;
+        }
+    });
+
+    cancelButton.addEventListener("click", () => {
+        if (pendingProposal !== proposal) {
+            return;
+        }
+
+        pendingProposal = null;
+
+        element.classList.add("cancelled");
+        heading.textContent = "Change cancelled";
+        actions.replaceChildren();
+
+        const result = document.createElement("p");
+        result.className = "proposal-result";
+        result.textContent = "No changes were made.";
+        element.appendChild(result);
+
+        assistantStatus.textContent =
+            "Proposal cancelled. No changes were made.";
+        setAssistantChatEnabled(true);
+    });
+}
+
 assistantChatForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+
+    if (pendingProposal) {
+        return;
+    }
 
     const question = assistantInput.value.trim();
 
@@ -755,8 +964,7 @@ assistantChatForm.addEventListener("submit", async (event) => {
     appendAssistantMessage(question, "user");
 
     assistantInput.value = "";
-    assistantInput.disabled = true;
-    assistantSendBtn.disabled = true;
+    setAssistantChatEnabled(false);
     assistantStatus.textContent = "Assistant is thinking...";
 
     try {
@@ -771,13 +979,19 @@ assistantChatForm.addEventListener("submit", async (event) => {
         });
 
         if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
+            throw new Error(await readApiError(response));
         }
 
         const data = await response.json();
 
         appendAssistantMessage(data.reply, "bot");
-        assistantStatus.textContent = "";
+
+        if (data.proposal) {
+            renderProposal(data.proposal);
+        } else {
+            assistantStatus.textContent = "";
+            setAssistantChatEnabled(true);
+        }
 
     } catch (error) {
         appendAssistantMessage(
@@ -786,10 +1000,6 @@ assistantChatForm.addEventListener("submit", async (event) => {
         );
 
         assistantStatus.textContent = `Error: ${error.message}`;
-
-    } finally {
-        assistantInput.disabled = false;
-        assistantSendBtn.disabled = false;
-        assistantInput.focus();
+        setAssistantChatEnabled(true);
     }
 });

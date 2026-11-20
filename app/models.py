@@ -10,6 +10,16 @@ class CardStatus(str, Enum):
     DONE = "done"
 
 
+# Shared by the card update endpoint and the assistant's move proposals.
+ALLOWED_TRANSITIONS = {
+    CardStatus.SPEC: {CardStatus.READY},
+    CardStatus.READY: {CardStatus.IN_PROGRESS},
+    CardStatus.IN_PROGRESS: {CardStatus.REVIEW},
+    CardStatus.REVIEW: {CardStatus.DONE},
+    CardStatus.DONE: set(),
+}
+
+
 def _validate_assignee(value):
     if value is None:
         return value

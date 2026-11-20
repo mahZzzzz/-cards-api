@@ -438,6 +438,62 @@ main {
     color: #64748b;
 }
 
+.assistant-proposal {
+    align-self: flex-start;
+    max-width: 85%;
+    padding: 16px;
+    border: 1px solid #cbd5e1;
+    border-left: 4px solid #635bdb;
+    border-radius: 12px;
+    background: #ffffff;
+}
+
+.assistant-proposal h4 {
+    margin: 0 0 8px;
+    color: #1e293b;
+}
+
+.assistant-proposal p {
+    margin: 0;
+    line-height: 1.6;
+}
+
+.assistant-proposal .proposal-error {
+    margin-top: 10px;
+    color: #b91c1c;
+    font-size: 13px;
+}
+
+.assistant-proposal .proposal-result {
+    margin-top: 10px;
+    color: #475569;
+    font-size: 13px;
+}
+
+.assistant-proposal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.assistant-proposal button.secondary {
+    background: #e9edf5;
+    color: #243047;
+}
+
+.assistant-proposal button.secondary:hover {
+    background: #dce2ed;
+}
+
+.assistant-proposal.confirmed {
+    border-left-color: #16a34a;
+}
+
+.assistant-proposal.cancelled {
+    border-left-color: #94a3b8;
+    opacity: 0.8;
+}
+
 @media (max-width: 600px) {
     .assistant-input-row {
         flex-direction: column;

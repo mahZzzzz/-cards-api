@@ -1,7 +1,15 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, status
-from app.models import CardCreate, CardRead, CardStatus, CardUpdate, CommentCreate, CommentRead
+from app.models import (
+    ALLOWED_TRANSITIONS,
+    CardCreate,
+    CardRead,
+    CardStatus,
+    CardUpdate,
+    CommentCreate,
+    CommentRead,
+)
 from fastapi.middleware.cors import CORSMiddleware
 
 import tempfile
@@ -15,7 +23,7 @@ from prd_service import generate_prd_breakdown
 from schemas import Breakdown
 
 from pydantic import BaseModel
-from assistant_service import answer_board_question
+from assistant_service import answer_board_request
 
 
 @asynccontextmanager
@@ -179,16 +187,6 @@ async def delete_card(card_id: int):
     return None
 
 
-ALLOWED_TRANSITIONS = {
-    CardStatus.SPEC: {CardStatus.READY},
-    CardStatus.READY: {CardStatus.IN_PROGRESS},
-    CardStatus.IN_PROGRESS: {CardStatus.REVIEW},
-    CardStatus.REVIEW: {CardStatus.DONE},
-    CardStatus.DONE: set(),
-}
-
-
-
 @app.patch(
     "/cards/{card_id}",
     response_model=CardRead,
@@ -350,9 +348,14 @@ class AssistantMessage(BaseModel):
 
 class AssistantReply(BaseModel):
     reply: str
+    proposal: dict | None = None
 
 
-@app.post("/assistant/chat", response_model=AssistantReply)
+@app.post(
+    "/assistant/chat",
+    response_model=AssistantReply,
+    response_model_exclude_none=True,
+)
 async def assistant_chat(request: AssistantMessage):
     if not request.message.strip():
         raise HTTPException(
@@ -365,11 +368,21 @@ async def assistant_chat(request: AssistantMessage):
         for card in cards.values()
     ]
 
-    reply = await run_in_threadpool(
-        answer_board_question,
-        request.message,
-        current_cards,
-    )
+    try:
+        reply, proposal = await run_in_threadpool(
+            answer_board_request,
+            request.message,
+            current_cards,
+        )
 
-    return AssistantReply(reply=reply)
+    except Exception as error:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "The assistant is temporarily unavailable. "
+                "Please try again."
+            ),
+        ) from error
+
+    return AssistantReply(reply=reply, proposal=proposal)
 
