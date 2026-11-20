@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, HTTPException, status
 from app.models import CardCreate, CardRead, CardStatus, CardUpdate, CommentCreate, CommentRead
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,16 +10,25 @@ from pathlib import Path
 from fastapi import File, UploadFile
 from starlette.concurrency import run_in_threadpool
 
+import database
 from prd_service import generate_prd_breakdown
 from schemas import Breakdown
 
 from pydantic import BaseModel
 from assistant_service import answer_board_question
 
+
+@asynccontextmanager
+async def lifespan(_app):
+    initialize_storage()
+    yield
+
+
 app = FastAPI(
     title="Cards API",
     description="A REST API for managing cards",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 
@@ -57,6 +68,35 @@ cards: _CardsDict = _CardsDict()
 next_card_id = 1
 
 
+def reload_storage_from_db():
+    """Replace the in-memory cache with persisted cards and comments."""
+
+    global next_card_id, next_comment_id
+
+    stored_cards = database.load_cards()
+    stored_comments = database.load_comments()
+
+    cards.clear()
+    comments.clear()
+
+    for row in stored_cards:
+        card = CardRead.model_validate(row)
+        cards[card.id] = card
+
+    for row in stored_comments:
+        comment = CommentRead.model_validate(row)
+        comments[comment.id] = comment
+
+    next_card_id, next_comment_id = database.get_next_ids()
+
+
+def initialize_storage():
+    """Create the database if needed and hydrate the in-memory cache."""
+
+    database.initialize_database()
+    reload_storage_from_db()
+
+
 @app.get("/")
 async def root():
     return {"message": "Cards API is running"}
@@ -83,6 +123,7 @@ async def create_card(card: CardCreate):
         assignee=card.assignee
     )
 
+    database.create_card(new_card.model_dump(mode="json"))
     cards[next_card_id] = new_card
     next_card_id += 1
 
@@ -124,6 +165,10 @@ async def delete_card(card_id: int):
             status_code=404,
             detail="Card not found"
         )
+
+    # Remove the card and its comments from SQLite first so a failed
+    # database write cannot leave the in-memory cache out of sync.
+    database.delete_card(card_id)
 
     # Clean up comments associated with the deleted card
     to_delete = [comment_id for comment_id, comment in comments.items() if comment.card_id == card_id]
@@ -187,6 +232,7 @@ async def update_card(card_id: int, update: CardUpdate):
     updated_data.update(changes)
 
     updated_card = CardRead.model_validate(updated_data)
+    database.save_card(updated_card.model_dump(mode="json"))
     cards[card_id] = updated_card
 
     return updated_card
@@ -216,6 +262,7 @@ async def create_comment(card_id: int, comment: CommentCreate):
         text=comment.text
     )
 
+    database.create_comment(new_comment.model_dump(mode="json"))
     comments[next_comment_id] = new_comment
     next_comment_id += 1
 
