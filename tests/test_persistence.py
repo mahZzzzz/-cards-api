@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 import database
@@ -7,6 +8,13 @@ import app.main as main_module
 
 
 client = TestClient(main_module.app)
+
+
+@pytest.fixture(autouse=True)
+def authenticate_admin(admin_token):
+    client.headers["Authorization"] = f"Bearer {admin_token}"
+    yield
+    client.headers.pop("Authorization", None)
 
 
 def restart_storage():
@@ -143,7 +151,7 @@ def test_delete_card_removes_comments_from_database():
     assert comment_count == 0
 
 
-def test_application_startup_loads_persisted_state():
+def test_application_startup_loads_persisted_state(admin_token):
     card = create_card("Loaded at startup")
     card_id = card["id"]
 
@@ -151,6 +159,7 @@ def test_application_startup_loads_persisted_state():
     main_module.comments.clear()
 
     with TestClient(main_module.app) as restarted_client:
+        restarted_client.headers["Authorization"] = f"Bearer {admin_token}"
         response = restarted_client.get(f"/cards/{card_id}")
         assert response.status_code == 200
         assert response.json()["title"] == "Loaded at startup"

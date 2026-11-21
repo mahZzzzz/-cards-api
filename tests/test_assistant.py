@@ -11,6 +11,13 @@ import app.main as main_module
 client = TestClient(main_module.app)
 
 
+@pytest.fixture(autouse=True)
+def authenticate_admin(admin_token):
+    client.headers["Authorization"] = f"Bearer {admin_token}"
+    yield
+    client.headers.pop("Authorization", None)
+
+
 def make_tool_call(
     name="search_cards",
     arguments='{"query": ""}',

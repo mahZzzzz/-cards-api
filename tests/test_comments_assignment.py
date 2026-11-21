@@ -12,8 +12,18 @@ def reset_cards():
     cards.clear()
 
 
-def test_add_comment_to_card():
+client = None
+
+
+@pytest.fixture(autouse=True)
+def authenticated_client(admin_token):
+    global client
     client = TestClient(app)
+    client.headers["Authorization"] = f"Bearer {admin_token}"
+    yield client
+
+
+def test_add_comment_to_card():
 
     # Create a card
     response = client.post(
@@ -45,7 +55,6 @@ def test_add_comment_to_card():
 
 
 def test_cannot_comment_on_nonexistent_card():
-    client = TestClient(app)
 
     response = client.post(
         "/cards/999999/comments",
@@ -60,7 +69,6 @@ def test_cannot_comment_on_nonexistent_card():
 
 
 def test_list_card_comments():
-    client = TestClient(app)
 
     # Create a card
     response = client.post(
@@ -105,7 +113,6 @@ def test_list_card_comments():
     ],
 )
 def test_reject_invalid_comment(payload):
-    client = TestClient(app)
 
     response = client.post(
         "/cards",
@@ -127,7 +134,6 @@ def test_reject_invalid_comment(payload):
 
     
 def test_assign_card_to_user():
-    client = TestClient(app)
 
     # Create a card
     response = client.post(
@@ -159,7 +165,6 @@ def test_assign_card_to_user():
 
 
 def test_change_card_assignee():
-    client = TestClient(app)
 
     response = client.post(
         "/cards",
@@ -192,7 +197,6 @@ def test_change_card_assignee():
 
 
 def test_remove_card_assignee():
-    client = TestClient(app)
 
     response = client.post(
         "/cards",
@@ -232,7 +236,6 @@ def test_remove_card_assignee():
 
 @pytest.mark.parametrize("assignee", ["", "   "])
 def test_reject_invalid_assignee(assignee):
-    client = TestClient(app)
 
     response = client.post(
         "/cards",
@@ -254,7 +257,6 @@ def test_reject_invalid_assignee(assignee):
 
 
 def test_create_card_with_assignee():
-    client = TestClient(app)
 
     response = client.post(
         "/cards",
@@ -280,7 +282,6 @@ def test_create_card_with_assignee():
 
 @pytest.mark.parametrize("assignee", ["", "   "])
 def test_reject_invalid_assignee_on_create(assignee):
-    client = TestClient(app)
 
     before = client.get("/cards").json()
 

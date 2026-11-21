@@ -1,6 +1,12 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, status
+from app.auth import (
+    ensure_bootstrap_admin,
+    get_current_user,
+    require_admin,
+    router as auth_router,
+)
 from app.models import (
     ALLOWED_TRANSITIONS,
     CardCreate,
@@ -50,8 +56,10 @@ app.add_middleware(
     ],
     allow_credentials=False,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type"],
+    allow_headers=["Content-Type", "Authorization"],
 )
+
+app.include_router(auth_router)
 
 
 # Temporary in-memory storage
@@ -102,6 +110,7 @@ def initialize_storage():
     """Create the database if needed and hydrate the in-memory cache."""
 
     database.initialize_database()
+    ensure_bootstrap_admin()
     reload_storage_from_db()
 
 
@@ -120,7 +129,10 @@ async def health_check():
     response_model=CardRead,
     status_code=status.HTTP_201_CREATED
 )
-async def create_card(card: CardCreate):
+async def create_card(
+    card: CardCreate,
+    _user: dict = Depends(get_current_user),
+):
     global next_card_id
 
     new_card = CardRead(
@@ -138,7 +150,9 @@ async def create_card(card: CardCreate):
     return new_card
 
 @app.get("/cards", response_model=list[CardRead])
-async def list_cards():
+async def list_cards(
+    _user: dict = Depends(get_current_user),
+):
     return list(cards.values())
 
 
@@ -151,7 +165,10 @@ async def list_cards():
     }
 )
 
-async def read_card(card_id: int):
+async def read_card(
+    card_id: int,
+    _user: dict = Depends(get_current_user),
+):
     if card_id not in cards:
         raise HTTPException(
             status_code=404,
@@ -167,7 +184,10 @@ async def read_card(card_id: int):
         404: {"description": "Card not found"}
     }
 )
-async def delete_card(card_id: int):
+async def delete_card(
+    card_id: int,
+    _user: dict = Depends(require_admin),
+):
     if card_id not in cards:
         raise HTTPException(
             status_code=404,
@@ -197,7 +217,11 @@ async def delete_card(card_id: int):
     }
 )
 
-async def update_card(card_id: int, update: CardUpdate):
+async def update_card(
+    card_id: int,
+    update: CardUpdate,
+    _user: dict = Depends(get_current_user),
+):
     if card_id not in cards:
         raise HTTPException(
             status_code=404,
@@ -256,7 +280,11 @@ async def update_card(card_id: int, update: CardUpdate):
         404: {"description": "Card not found"}
     }
 )
-async def create_comment(card_id: int, comment: CommentCreate):
+async def create_comment(
+    card_id: int,
+    comment: CommentCreate,
+    _user: dict = Depends(get_current_user),
+):
     global next_comment_id
 
     if card_id not in cards:
@@ -286,7 +314,10 @@ async def create_comment(card_id: int, comment: CommentCreate):
         404: {"description": "Card not found"}
     }
 )
-async def list_comments(card_id: int):
+async def list_comments(
+    card_id: int,
+    _user: dict = Depends(get_current_user),
+):
     if card_id not in cards:
         raise HTTPException(
             status_code=404,
@@ -301,6 +332,7 @@ async def list_comments(card_id: int):
 async def preview_prd(
     file: UploadFile = File(...),
     use_ocr: bool = False,
+    _user: dict = Depends(get_current_user),
 ):
     """Upload a PDF and generate draft cards without saving them."""
 
@@ -368,7 +400,10 @@ class AssistantReply(BaseModel):
     response_model=AssistantReply,
     response_model_exclude_none=True,
 )
-async def assistant_chat(request: AssistantMessage):
+async def assistant_chat(
+    request: AssistantMessage,
+    _user: dict = Depends(get_current_user),
+):
     if not request.message.strip():
         raise HTTPException(
             status_code=422,

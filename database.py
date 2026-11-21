@@ -102,6 +102,28 @@ def initialize_database():
                 )
             """)
 
+            # Authentication tables. These are additive only and never
+            # touch existing cards, comments, or counters.
+            connection.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY,
+                    username TEXT NOT NULL UNIQUE,
+                    password_hash TEXT NOT NULL,
+                    role TEXT NOT NULL
+                        CHECK (role IN ('admin', 'member')),
+                    created_at TEXT NOT NULL
+                )
+            """)
+
+            connection.execute("""
+                CREATE TABLE IF NOT EXISTS sessions (
+                    token_hash TEXT PRIMARY KEY,
+                    user_id INTEGER NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    FOREIGN KEY (user_id) REFERENCES users(id)
+                )
+            """)
+
             # Existing databases created before the counters table must
             # continue IDs from their highest stored IDs.
             _seed_counter(connection, CARD_COUNTER, "cards")
@@ -263,6 +285,156 @@ def get_next_ids():
             _get_counter(connection, CARD_COUNTER),
             _get_counter(connection, COMMENT_COUNTER),
         )
+    finally:
+        connection.close()
+
+
+def create_user(
+    username: str,
+    password_hash: str,
+    role: str,
+    created_at: str,
+) -> int:
+    """Insert an authentication user and return its ID."""
+
+    connection = get_connection()
+
+    try:
+        with connection:
+            cursor = connection.execute(
+                """
+                INSERT INTO users (
+                    username, password_hash, role, created_at
+                )
+                VALUES (?, ?, ?, ?)
+                """,
+                (username, password_hash, role, created_at),
+            )
+    finally:
+        connection.close()
+
+    return cursor.lastrowid
+
+
+def get_user_by_username(username: str):
+    """Return a user row by username, or None."""
+
+    connection = get_connection()
+
+    try:
+        row = connection.execute(
+            "SELECT * FROM users WHERE username = ?",
+            (username,),
+        ).fetchone()
+    finally:
+        connection.close()
+
+    return dict(row) if row is not None else None
+
+
+def get_user_by_id(user_id: int):
+    """Return a user row by ID, or None."""
+
+    connection = get_connection()
+
+    try:
+        row = connection.execute(
+            "SELECT * FROM users WHERE id = ?",
+            (user_id,),
+        ).fetchone()
+    finally:
+        connection.close()
+
+    return dict(row) if row is not None else None
+
+
+def count_users() -> int:
+    """Return the number of authentication users."""
+
+    connection = get_connection()
+
+    try:
+        return connection.execute(
+            "SELECT COUNT(*) FROM users"
+        ).fetchone()[0]
+    finally:
+        connection.close()
+
+
+def create_session(
+    token_hash: str,
+    user_id: int,
+    expires_at: str,
+):
+    """Persist a hashed bearer token with its expiry."""
+
+    connection = get_connection()
+
+    try:
+        with connection:
+            connection.execute(
+                """
+                INSERT INTO sessions (token_hash, user_id, expires_at)
+                VALUES (?, ?, ?)
+                """,
+                (token_hash, user_id, expires_at),
+            )
+    finally:
+        connection.close()
+
+
+def get_session(token_hash: str):
+    """Return a session joined with its user, or None."""
+
+    connection = get_connection()
+
+    try:
+        row = connection.execute(
+            """
+            SELECT
+                sessions.token_hash,
+                sessions.user_id,
+                sessions.expires_at,
+                users.username,
+                users.role
+            FROM sessions
+            JOIN users ON users.id = sessions.user_id
+            WHERE sessions.token_hash = ?
+            """,
+            (token_hash,),
+        ).fetchone()
+    finally:
+        connection.close()
+
+    return dict(row) if row is not None else None
+
+
+def delete_session(token_hash: str):
+    """Delete a single session by token hash."""
+
+    connection = get_connection()
+
+    try:
+        with connection:
+            connection.execute(
+                "DELETE FROM sessions WHERE token_hash = ?",
+                (token_hash,),
+            )
+    finally:
+        connection.close()
+
+
+def delete_expired_sessions(now_iso: str):
+    """Delete sessions whose expiry is at or before the given time."""
+
+    connection = get_connection()
+
+    try:
+        with connection:
+            connection.execute(
+                "DELETE FROM sessions WHERE expires_at <= ?",
+                (now_iso,),
+            )
     finally:
         connection.close()
 
