@@ -24,3 +24,8 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+extracted_*.txt
+sample_prds/
+
+# Local SQLite database
+cards.db

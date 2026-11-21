@@ -286,3 +286,221 @@ main {
     overflow-y: auto;
     box-sizing: border-box;
 }
+
+
+/* PRD Upload Section */
+.prd-upload-section {
+  max-width: 1200px;
+  margin: 24px auto;
+  padding: 28px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+}
+
+.prd-upload-section h2 {
+  margin-top: 0;
+  color: #1e293b;
+}
+
+#prd-upload-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 20px;
+}
+
+#prd-generate-btn {
+  padding: 12px 20px;
+  border-radius: 10px;
+}
+
+#prd-upload-status {
+  margin-top: 16px;
+  font-weight: 500;
+}
+
+#prd-draft-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.prd-draft-card {
+  padding: 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #f8fafc;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+}
+
+.prd-draft-card h4 {
+  margin: 0 0 12px;
+  color: #1e293b;
+}
+
+.prd-draft-card p {
+  color: #475569;
+  line-height: 1.6;
+}
+
+.prd-draft-card small {
+  color: #64748b;
+}
+
+#prd-ambiguities {
+  line-height: 1.8;
+}
+
+
+/* AI Board Assistant */
+
+.assistant-section {
+    max-width: 1200px;
+    margin: 24px auto;
+    padding: 28px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+}
+
+.assistant-section h2 {
+    margin-top: 0;
+    color: #1e293b;
+}
+
+.assistant-messages {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 120px;
+    max-height: 350px;
+    overflow-y: auto;
+    padding: 16px;
+    margin: 20px 0;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+}
+
+.assistant-message {
+    max-width: 85%;
+    padding: 12px 16px;
+    border-radius: 12px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.assistant-message.user {
+    align-self: flex-end;
+    background: #635bdb;
+    color: #ffffff;
+}
+
+.assistant-message.bot {
+    align-self: flex-start;
+    background: #e9edf5;
+    color: #243047;
+}
+
+#assistant-chat-form label {
+    display: block;
+    margin-bottom: 10px;
+    font-weight: 600;
+}
+
+.assistant-input-row {
+    display: flex;
+    gap: 12px;
+}
+
+#assistant-input {
+    flex: 1;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    font: inherit;
+}
+
+#assistant-send-btn {
+    padding: 12px 24px;
+    border-radius: 10px;
+}
+
+#assistant-status {
+    margin-top: 12px;
+    color: #64748b;
+}
+
+.assistant-proposal {
+    align-self: flex-start;
+    max-width: 85%;
+    padding: 16px;
+    border: 1px solid #cbd5e1;
+    border-left: 4px solid #635bdb;
+    border-radius: 12px;
+    background: #ffffff;
+}
+
+.assistant-proposal h4 {
+    margin: 0 0 8px;
+    color: #1e293b;
+}
+
+.assistant-proposal p {
+    margin: 0;
+    line-height: 1.6;
+}
+
+.assistant-proposal .proposal-error {
+    margin-top: 10px;
+    color: #b91c1c;
+    font-size: 13px;
+}
+
+.assistant-proposal .proposal-result {
+    margin-top: 10px;
+    color: #475569;
+    font-size: 13px;
+}
+
+.assistant-proposal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.assistant-proposal button.secondary {
+    background: #e9edf5;
+    color: #243047;
+}
+
+.assistant-proposal button.secondary:hover {
+    background: #dce2ed;
+}
+
+.assistant-proposal.confirmed {
+    border-left-color: #16a34a;
+}
+
+.assistant-proposal.cancelled {
+    border-left-color: #94a3b8;
+    opacity: 0.8;
+}
+
+@media (max-width: 600px) {
+    .assistant-input-row {
+        flex-direction: column;
+    }
+
+    #assistant-send-btn {
+        width: 100%;
+    }
+}
+

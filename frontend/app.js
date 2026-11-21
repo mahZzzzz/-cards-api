@@ -512,3 +512,494 @@ commentForm.addEventListener("submit", async (event) => {
 });
 
 
+
+const prdForm = document.getElementById("prd-upload-form");
+const prdFileInput = document.getElementById("prd-file");
+const prdUseOcr = document.getElementById("prd-use-ocr");
+const prdGenerateBtn = document.getElementById("prd-generate-btn");
+const prdStatus = document.getElementById("prd-upload-status");
+const prdResults = document.getElementById("prd-results");
+const prdDraftList = document.getElementById("prd-draft-list");
+const prdAmbiguities = document.getElementById("prd-ambiguities");
+
+prdForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const file = prdFileInput.files[0];
+
+  if (!file) {
+    prdStatus.textContent = "Please select a PDF file.";
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  prdGenerateBtn.disabled = true;
+  prdStatus.textContent = "Analyzing PDF and generating cards...";
+  prdResults.hidden = true;
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:8000/prd/preview?use_ocr=${prdUseOcr.checked}`,
+      {
+        method: "POST",
+        body: formData
+      }
+    );
+
+    if (!response.ok) {
+      let message = `Server error: ${response.status}`;
+
+      try {
+        const error = await response.json();
+        if (typeof error.detail === "string") {
+          message = error.detail;
+        }
+      } catch (_) {}
+
+      throw new Error(message);
+    }
+
+    const breakdown = await response.json();
+
+    prdDraftList.replaceChildren();
+    prdAmbiguities.replaceChildren();
+
+    
+    for (const card of breakdown.cards) {
+      const element = document.createElement("article");
+      element.className = "prd-draft-card";
+      element.dataset.card = JSON.stringify(card);
+
+      // Checkbox for selecting the card
+      const selectLabel = document.createElement("label");
+      selectLabel.className = "prd-card-select";
+
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.className = "prd-card-checkbox";
+
+      selectLabel.append(checkbox, " Select this card");
+
+      // Card title
+      const title = document.createElement("h4");
+      title.textContent = card.title;
+
+      // Card goal
+      const goal = document.createElement("p");
+      goal.textContent = card.goal;
+
+      // Source section
+      const source = document.createElement("small");
+      source.textContent = `Source: ${card.prd_section}`;
+
+      element.append(selectLabel, title, goal, source);
+      prdDraftList.appendChild(element);
+    }
+
+    for (const ambiguity of breakdown.ambiguities) {
+      const item = document.createElement("li");
+      item.textContent = ambiguity;
+      prdAmbiguities.appendChild(item);
+    }
+
+    prdResults.hidden = false;
+    prdStatus.textContent =
+      `${breakdown.cards.length} draft cards generated successfully.`;
+
+  } catch (error) {
+    prdStatus.textContent = `Error: ${error.message}`;
+  } finally {
+    prdGenerateBtn.disabled = false;
+  }
+});
+
+
+/* Select All Suggested Cards */
+
+const prdSelectAllBtn = document.getElementById("prd-select-all-btn");
+
+prdSelectAllBtn.addEventListener("click", () => {
+    const checkboxes = document.querySelectorAll(
+        ".prd-card-checkbox"
+    );
+
+    const allSelected =
+        checkboxes.length > 0 &&
+        Array.from(checkboxes).every(checkbox => checkbox.checked);
+
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = !allSelected;
+    });
+
+    prdSelectAllBtn.textContent = allSelected
+        ? "Select All"
+        : "Deselect All";
+});
+
+
+/* Add Selected Draft Cards to the Board */
+
+const prdAddSelectedBtn = document.getElementById(
+  "prd-add-selected-btn"
+);
+
+prdAddSelectedBtn.addEventListener("click", async () => {
+  const selectedCheckboxes = document.querySelectorAll(
+    ".prd-card-checkbox:checked"
+  );
+
+  if (selectedCheckboxes.length === 0) {
+    alert("Please select at least one card.");
+    return;
+  }
+
+  const confirmed = confirm(
+    `Add ${selectedCheckboxes.length} selected cards to the board?`
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  prdAddSelectedBtn.disabled = true;
+
+  let addedCount = 0;
+  let failedCount = 0;
+
+  try {
+    for (const checkbox of selectedCheckboxes) {
+      const element = checkbox.closest(".prd-draft-card");
+      const card = JSON.parse(element.dataset.card);
+
+      const description = [
+        `Goal: ${card.goal}`,
+        "",
+        "Acceptance Criteria:",
+        ...card.acceptance_criteria.map(
+          criterion => `- ${criterion}`
+        ),
+        "",
+        `Dependencies: ${card.dependencies.join(", ") || "None"}`,
+        `Source: ${card.prd_section}`
+      ].join("\n").slice(0, 1000);
+
+      try {
+        const response = await fetch(`${API_URL}/cards`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            title: card.title.trim(),
+            description: description
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        addedCount++;
+        element.remove();
+
+      } catch (error) {
+        failedCount++;
+        console.error("Failed to add draft card:", error);
+      }
+    }
+
+    await loadCards();
+
+    prdStatus.textContent =
+      `${addedCount} cards added to the board. ` +
+      `${failedCount} cards failed.`;
+
+    prdSelectAllBtn.textContent = "Select All";
+
+  } finally {
+    prdAddSelectedBtn.disabled = false;
+  }
+});
+
+
+
+/* AI Board Assistant Chat */
+
+const assistantChatForm = document.getElementById("assistant-chat-form");
+const assistantInput = document.getElementById("assistant-input");
+const assistantMessages = document.getElementById("assistant-messages");
+const assistantStatus = document.getElementById("assistant-status");
+const assistantSendBtn = document.getElementById("assistant-send-btn");
+
+// Only one proposal may be waiting for a decision at a time.
+let pendingProposal = null;
+
+function setAssistantChatEnabled(enabled) {
+    assistantInput.disabled = !enabled;
+    assistantSendBtn.disabled = !enabled;
+
+    if (enabled) {
+        assistantInput.focus();
+    }
+}
+
+function appendAssistantMessage(text, sender) {
+    const message = document.createElement("div");
+
+    message.className = `assistant-message ${sender}`;
+    message.textContent = text;
+
+    assistantMessages.appendChild(message);
+    assistantMessages.scrollTop = assistantMessages.scrollHeight;
+}
+
+async function readApiError(response) {
+    let message = `HTTP ${response.status}`;
+
+    try {
+        const data = await response.json();
+
+        if (typeof data.detail === "string") {
+            message = data.detail;
+        } else if (Array.isArray(data.detail)) {
+            message = data.detail
+                .map(item => item.msg || JSON.stringify(item))
+                .join("; ");
+        }
+    } catch (_) {
+        // Keep the status-based message.
+    }
+
+    return message;
+}
+
+function describeProposal(proposal) {
+    if (proposal.action === "create_card") {
+        return `Create a card titled "${proposal.title}".`;
+    }
+
+    if (proposal.action === "move_card") {
+        const status = String(proposal.status).replaceAll("_", " ");
+        return `Move card #${proposal.card_id} to "${status}".`;
+    }
+
+    if (proposal.action === "add_comment") {
+        return (
+            `Add a comment by ${proposal.author} ` +
+            `to card #${proposal.card_id}.`
+        );
+    }
+
+    return "Apply this proposed change.";
+}
+
+async function submitProposal(proposal) {
+    let url = `${API_URL}/cards`;
+    let method = "POST";
+    let body = {};
+
+    if (proposal.action === "create_card") {
+        body = {
+            title: proposal.title,
+            description: proposal.description || ""
+        };
+
+        if (proposal.assignee) {
+            body.assignee = proposal.assignee;
+        }
+
+    } else if (proposal.action === "move_card") {
+        url = `${API_URL}/cards/${proposal.card_id}`;
+        method = "PATCH";
+        body = { status: proposal.status };
+
+    } else if (proposal.action === "add_comment") {
+        url = `${API_URL}/cards/${proposal.card_id}/comments`;
+        method = "POST";
+        body = {
+            author: proposal.author,
+            text: proposal.text
+        };
+
+    } else {
+        throw new Error("Unsupported proposal.");
+    }
+
+    const response = await fetch(url, {
+        method: method,
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+        throw new Error(await readApiError(response));
+    }
+}
+
+function renderProposal(proposal) {
+    const element = document.createElement("div");
+    element.className = "assistant-proposal";
+
+    const heading = document.createElement("h4");
+    heading.textContent = "Confirm this change";
+
+    const description = document.createElement("p");
+    description.textContent = describeProposal(proposal);
+
+    const errorMessage = document.createElement("p");
+    errorMessage.className = "proposal-error";
+    errorMessage.hidden = true;
+
+    const actions = document.createElement("div");
+    actions.className = "assistant-proposal-actions";
+
+    const confirmButton = document.createElement("button");
+    confirmButton.type = "button";
+    confirmButton.textContent = "Confirm";
+
+    const cancelButton = document.createElement("button");
+    cancelButton.type = "button";
+    cancelButton.className = "secondary";
+    cancelButton.textContent = "Cancel";
+
+    actions.append(confirmButton, cancelButton);
+    element.append(heading, description, errorMessage, actions);
+    assistantMessages.appendChild(element);
+    assistantMessages.scrollTop = assistantMessages.scrollHeight;
+
+    pendingProposal = proposal;
+    setAssistantChatEnabled(false);
+    assistantStatus.textContent =
+        "Review the proposed change, then Confirm or Cancel.";
+
+    confirmButton.addEventListener("click", async () => {
+        if (pendingProposal !== proposal) {
+            return;
+        }
+
+        confirmButton.disabled = true;
+        cancelButton.disabled = true;
+        errorMessage.hidden = true;
+        assistantStatus.textContent = "Saving the confirmed change...";
+
+        try {
+            await submitProposal(proposal);
+
+            pendingProposal = null;
+
+            element.classList.add("confirmed");
+            heading.textContent = "Change confirmed";
+            actions.replaceChildren();
+
+            const result = document.createElement("p");
+            result.className = "proposal-result";
+            result.textContent = "The board was updated successfully.";
+            element.appendChild(result);
+
+            assistantStatus.textContent = "Change saved.";
+
+            await loadCards();
+
+            if (
+                !detailsModal.hidden &&
+                proposal.action !== "create_card" &&
+                String(detailsModal.dataset.cardId) ===
+                    String(proposal.card_id)
+            ) {
+                await showCardDetails(Number(proposal.card_id));
+            }
+
+            setAssistantChatEnabled(true);
+
+        } catch (error) {
+            errorMessage.textContent =
+                `Could not apply the change: ${error.message}`;
+            errorMessage.hidden = false;
+            assistantStatus.textContent = "The change was not saved.";
+
+            confirmButton.disabled = false;
+            cancelButton.disabled = false;
+        }
+    });
+
+    cancelButton.addEventListener("click", () => {
+        if (pendingProposal !== proposal) {
+            return;
+        }
+
+        pendingProposal = null;
+
+        element.classList.add("cancelled");
+        heading.textContent = "Change cancelled";
+        actions.replaceChildren();
+
+        const result = document.createElement("p");
+        result.className = "proposal-result";
+        result.textContent = "No changes were made.";
+        element.appendChild(result);
+
+        assistantStatus.textContent =
+            "Proposal cancelled. No changes were made.";
+        setAssistantChatEnabled(true);
+    });
+}
+
+assistantChatForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    if (pendingProposal) {
+        return;
+    }
+
+    const question = assistantInput.value.trim();
+
+    if (!question) {
+        return;
+    }
+
+    appendAssistantMessage(question, "user");
+
+    assistantInput.value = "";
+    setAssistantChatEnabled(false);
+    assistantStatus.textContent = "Assistant is thinking...";
+
+    try {
+        const response = await fetch(`${API_URL}/assistant/chat`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                message: question
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(await readApiError(response));
+        }
+
+        const data = await response.json();
+
+        appendAssistantMessage(data.reply, "bot");
+
+        if (data.proposal) {
+            renderProposal(data.proposal);
+        } else {
+            assistantStatus.textContent = "";
+            setAssistantChatEnabled(true);
+        }
+
+    } catch (error) {
+        appendAssistantMessage(
+            "Sorry, I couldn't process your message. Please try again.",
+            "bot"
+        );
+
+        assistantStatus.textContent = `Error: ${error.message}`;
+        setAssistantChatEnabled(true);
+    }
+});
