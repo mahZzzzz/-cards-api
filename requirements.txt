@@ -18,6 +18,9 @@ httpx==0.28.1
 coverage==7.17.0
 
 groq==1.7.0
+instructor==1.17.0
+openai==3.3.0
+sentence-transformers==6.2.0
 python-dotenv==1.2.4
 PyMuPDF==2.1
 python-multipart==0.0.33
