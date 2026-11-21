@@ -6,9 +6,12 @@ import app.main as main_module
 
 
 @pytest.fixture(autouse=True)
-def reset_cards():
+def reset_cards(admin_token):
     main_module.cards.clear()
     main_module.next_card_id = 1
+    client.headers["Authorization"] = f"Bearer {admin_token}"
+    yield
+    client.headers.pop("Authorization", None)
 
 
 client = TestClient(main_module.app)

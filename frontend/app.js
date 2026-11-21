@@ -1,10 +1,141 @@
 
 const API_URL = "http://127.0.0.1:8000";
 
+const SESSION_KEY = "cardsBoardSession";
+
+const loginScreen = document.getElementById("login-screen");
+const loginForm = document.getElementById("login-form");
+const loginError = document.getElementById("login-error");
+const loginSubmitButton = document.getElementById("login-submit-btn");
+const loginUsernameInput = document.getElementById("login-username");
+const loginPasswordInput = document.getElementById("login-password");
+const appHeader = document.getElementById("app-header");
+const appMain = document.getElementById("app-main");
+const sessionUser = document.getElementById("session-user");
+const logoutButton = document.getElementById("logout-btn");
+
+function readSession() {
+    try {
+        const raw = sessionStorage.getItem(SESSION_KEY);
+
+        if (!raw) return null;
+
+        const session = JSON.parse(raw);
+
+        if (
+            !session ||
+            typeof session.token !== "string" ||
+            !session.token ||
+            typeof session.username !== "string" ||
+            (session.role !== "admin" && session.role !== "member")
+        ) {
+            return null;
+        }
+
+        return session;
+
+    } catch (_) {
+        return null;
+    }
+}
+
+function saveSession(session) {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+}
+
+function clearSession() {
+    sessionStorage.removeItem(SESSION_KEY);
+}
+
+function showLogin(message = "") {
+    appHeader.hidden = true;
+    appMain.hidden = true;
+    loginScreen.hidden = false;
+    sessionUser.textContent = "";
+    loginPasswordInput.value = "";
+
+    document.querySelectorAll(".modal").forEach(modal => {
+        modal.hidden = true;
+    });
+
+    if (message) {
+        loginError.textContent = message;
+        loginError.hidden = false;
+    } else {
+        loginError.textContent = "";
+        loginError.hidden = true;
+    }
+
+    loginUsernameInput.focus();
+}
+
+function showApp(session) {
+    loginScreen.hidden = true;
+    loginError.hidden = true;
+    appHeader.hidden = false;
+    appMain.hidden = false;
+    sessionUser.textContent = `${session.username} (${session.role})`;
+
+    // Members may view and edit cards, but only admins may delete them.
+    // The backend enforces this; this only keeps the UI consistent.
+    deleteCardButton.hidden = session.role !== "admin";
+}
+
+function handleUnauthorized() {
+    clearSession();
+    showLogin("Your session expired. Please sign in again.");
+}
+
+function handleApiError(error, fallbackMessage) {
+    if (error && error.status === 401) {
+        return;
+    }
+
+    if (error && error.status === 403) {
+        alert(error.message);
+        return;
+    }
+
+    alert(fallbackMessage);
+}
+
+async function apiFetch(path, options = {}) {
+    const session = readSession();
+    const headers = new Headers(options.headers || {});
+
+    if (session) {
+        headers.set("Authorization", `Bearer ${session.token}`);
+    }
+
+    const response = await fetch(`${API_URL}${path}`, {
+        ...options,
+        headers
+    });
+
+    if (response.status === 401) {
+        handleUnauthorized();
+        const error = new Error(
+            "Your session expired. Please sign in again."
+        );
+        error.status = 401;
+        throw error;
+    }
+
+    if (response.status === 403) {
+        const error = new Error(
+            "You do not have permission to perform this action."
+        );
+        error.status = 403;
+        throw error;
+    }
+
+    return response;
+}
+
 // Get cards from the FastAPI backend
 async function loadCards() {
     try {
-        const response = await fetch(`${API_URL}/cards`);
+        const response = await apiFetch("/cards");
 
         if (!response.ok) {
             throw new Error(`HTTP error: ${response.status}`);
@@ -48,12 +179,11 @@ async function loadCards() {
 
     } catch (error) {
         console.error("Failed to load cards:", error);
-        alert("Could not connect to the Cards API.");
+        handleApiError(error, "Could not connect to the Cards API.");
     }
 }
 
-// Load cards when the page opens
-document.addEventListener("DOMContentLoaded", loadCards);
+// Cards are loaded after authentication succeeds (see startApp).
 
 
 const cardModal = document.getElementById("card-modal");
@@ -86,7 +216,7 @@ cardForm.addEventListener("submit", async (event) => {
     }
 
     try {
-        const response = await fetch(`${API_URL}/cards`, {
+        const response = await apiFetch("/cards", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -108,7 +238,7 @@ cardForm.addEventListener("submit", async (event) => {
 
     } catch (error) {
         console.error("Failed to create card:", error);
-        alert("Could not create the card.");
+        handleApiError(error, "Could not create the card.");
     }
 });
 
@@ -120,7 +250,7 @@ const closeDetailsButton = document.getElementById("close-details-btn");
 // Load and display one card's details
 async function showCardDetails(cardId) {
     try {
-        const response = await fetch(`${API_URL}/cards/${cardId}`);
+        const response = await apiFetch(`/cards/${cardId}`);
 
         if (!response.ok) {
             throw new Error(`HTTP error: ${response.status}`);
@@ -149,7 +279,7 @@ async function showCardDetails(cardId) {
 
     } catch (error) {
         console.error("Failed to load card details:", error);
-        alert("Could not load card details.");
+        handleApiError(error, "Could not load card details.");
     }
 }
 
@@ -166,7 +296,7 @@ saveAssigneeButton.addEventListener("click", async () => {
     }
 
     try {
-        const response = await fetch(`${API_URL}/cards/${cardId}`, {
+        const response = await apiFetch(`/cards/${cardId}`, {
             method: "PATCH",
             headers: {
                 "Content-Type": "application/json"
@@ -183,7 +313,7 @@ saveAssigneeButton.addEventListener("click", async () => {
 
     } catch (error) {
         console.error("Failed to assign card:", error);
-        alert("Could not save the assignment.");
+        handleApiError(error, "Could not save the assignment.");
     }
 });
 
@@ -194,7 +324,7 @@ removeAssigneeButton.addEventListener("click", async () => {
     const cardId = detailsModal.dataset.cardId;
 
     try {
-        const response = await fetch(`${API_URL}/cards/${cardId}`, {
+        const response = await apiFetch(`/cards/${cardId}`, {
             method: "PATCH",
             headers: {
                 "Content-Type": "application/json"
@@ -211,7 +341,7 @@ removeAssigneeButton.addEventListener("click", async () => {
 
     } catch (error) {
         console.error("Failed to remove assignee:", error);
-        alert("Could not remove the assignment.");
+        handleApiError(error, "Could not remove the assignment.");
     }
 });
 
@@ -252,7 +382,7 @@ nextStageButton.addEventListener("click", async () => {
     const nextStatus = stages[currentIndex + 1];
 
     try {
-        const response = await fetch(`${API_URL}/cards/${cardId}`, {
+        const response = await apiFetch(`/cards/${cardId}`, {
             method: "PATCH",
             headers: {
                 "Content-Type": "application/json"
@@ -271,7 +401,7 @@ nextStageButton.addEventListener("click", async () => {
 
     } catch (error) {
         console.error("Failed to update card status:", error);
-        alert("Could not move the card to the next stage.");
+        handleApiError(error, "Could not move the card to the next stage.");
     }
 });
 
@@ -283,6 +413,13 @@ deleteCardButton.addEventListener("click", async () => {
 
     if (!cardId) return;
 
+    const session = readSession();
+
+    if (!session || session.role !== "admin") {
+        alert("You do not have permission to delete cards.");
+        return;
+    }
+
     const confirmed = confirm(
         "Are you sure you want to delete this card?"
     );
@@ -290,7 +427,7 @@ deleteCardButton.addEventListener("click", async () => {
     if (!confirmed) return;
 
     try {
-        const response = await fetch(`${API_URL}/cards/${cardId}`, {
+        const response = await apiFetch(`/cards/${cardId}`, {
             method: "DELETE"
         });
 
@@ -305,7 +442,7 @@ deleteCardButton.addEventListener("click", async () => {
 
     } catch (error) {
         console.error("Failed to delete card:", error);
-        alert("Could not delete the card.");
+        handleApiError(error, "Could not delete the card.");
     }
 });
 
@@ -322,7 +459,7 @@ editCardButton.addEventListener("click", async () => {
     if (!cardId) return;
 
     try {
-        const response = await fetch(`${API_URL}/cards/${cardId}`);
+        const response = await apiFetch(`/cards/${cardId}`);
 
         if (!response.ok) {
             throw new Error(`HTTP error: ${response.status}`);
@@ -341,7 +478,7 @@ editCardButton.addEventListener("click", async () => {
 
     } catch (error) {
         console.error("Failed to open edit form:", error);
-        alert("Could not load the card for editing.");
+        handleApiError(error, "Could not load the card for editing.");
     }
 });
 
@@ -370,7 +507,7 @@ editCardForm.addEventListener("submit", async (event) => {
     }
 
     try {
-        const response = await fetch(`${API_URL}/cards/${cardId}`, {
+        const response = await apiFetch(`/cards/${cardId}`, {
             method: "PATCH",
             headers: {
                 "Content-Type": "application/json"
@@ -393,7 +530,7 @@ editCardForm.addEventListener("submit", async (event) => {
 
     } catch (error) {
         console.error("Failed to edit card:", error);
-        alert("Could not save changes.");
+        handleApiError(error, "Could not save changes.");
     }
 });
 
@@ -424,15 +561,17 @@ async function checkApiHealth() {
     }
 }
 
-document.addEventListener("DOMContentLoaded", checkApiHealth);
+document.addEventListener("DOMContentLoaded", () => {
+    // Health is checked after authentication (see startApp).
+});
 
 
 async function loadComments(cardId) {
     const commentsList = document.getElementById("comments-list");
 
     try {
-        const response = await fetch(
-            `${API_URL}/cards/${cardId}/comments`
+        const response = await apiFetch(
+            `/cards/${cardId}/comments`
         );
 
         if (!response.ok) {
@@ -467,9 +606,14 @@ async function loadComments(cardId) {
 
     } catch (error) {
         console.error("Failed to load comments:", error);
-        commentsList.textContent = "Could not load comments.";
-    }
-}
+
+        if (error && error.status === 403) {
+            commentsList.textContent =
+                "You do not have permission to view comments.";
+        } else if (!error || error.status !== 401) {
+            commentsList.textContent = "Could not load comments.";
+        }
+    }}
 
 
 const commentForm = document.getElementById("comment-form");
@@ -487,8 +631,8 @@ commentForm.addEventListener("submit", async (event) => {
     }
 
     try {
-        const response = await fetch(
-            `${API_URL}/cards/${cardId}/comments`,
+        const response = await apiFetch(
+            `/cards/${cardId}/comments`,
             {
                 method: "POST",
                 headers: {
@@ -507,7 +651,7 @@ commentForm.addEventListener("submit", async (event) => {
 
     } catch (error) {
         console.error("Failed to add comment:", error);
-        alert("Could not add the comment.");
+        handleApiError(error, "Could not add the comment.");
     }
 });
 
@@ -540,8 +684,8 @@ prdForm.addEventListener("submit", async (event) => {
   prdResults.hidden = true;
 
   try {
-    const response = await fetch(
-      `http://127.0.0.1:8000/prd/preview?use_ocr=${prdUseOcr.checked}`,
+    const response = await apiFetch(
+      `/prd/preview?use_ocr=${prdUseOcr.checked}`,
       {
         method: "POST",
         body: formData
@@ -686,7 +830,7 @@ prdAddSelectedBtn.addEventListener("click", async () => {
       ].join("\n").slice(0, 1000);
 
       try {
-        const response = await fetch(`${API_URL}/cards`, {
+        const response = await apiFetch("/cards", {
           method: "POST",
           headers: {
             "Content-Type": "application/json"
@@ -707,6 +851,10 @@ prdAddSelectedBtn.addEventListener("click", async () => {
       } catch (error) {
         failedCount++;
         console.error("Failed to add draft card:", error);
+
+        if (error && error.status === 401) {
+          break;
+        }
       }
     }
 
@@ -827,7 +975,7 @@ async function submitProposal(proposal) {
         throw new Error("Unsupported proposal.");
     }
 
-    const response = await fetch(url, {
+    const response = await apiFetch(url.replace(API_URL, ""), {
         method: method,
         headers: {
             "Content-Type": "application/json"
@@ -968,7 +1116,7 @@ assistantChatForm.addEventListener("submit", async (event) => {
     assistantStatus.textContent = "Assistant is thinking...";
 
     try {
-        const response = await fetch(`${API_URL}/assistant/chat`, {
+        const response = await apiFetch("/assistant/chat", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -1003,3 +1151,74 @@ assistantChatForm.addEventListener("submit", async (event) => {
         setAssistantChatEnabled(true);
     }
 });
+
+
+
+loginForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    const username = loginUsernameInput.value.trim();
+    const password = loginPasswordInput.value;
+
+    loginError.hidden = true;
+    loginSubmitButton.disabled = true;
+
+    try {
+        const response = await fetch(`${API_URL}/auth/login`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ username, password })
+        });
+
+        if (!response.ok) {
+            throw new Error(
+                response.status === 401
+                    ? "Invalid username or password."
+                    : "Sign in failed. Please try again."
+            );
+        }
+
+        const data = await response.json();
+
+        const session = {
+            token: data.access_token,
+            username: data.username,
+            role: data.role
+        };
+
+        saveSession(session);
+        loginPasswordInput.value = "";
+        showApp(session);
+        await loadCards();
+
+    } catch (error) {
+        loginError.textContent = error.message;
+        loginError.hidden = false;
+    } finally {
+        loginSubmitButton.disabled = false;
+    }
+});
+
+
+logoutButton.addEventListener("click", () => {
+    clearSession();
+    showLogin();
+});
+
+
+async function startApp() {
+    const session = readSession();
+
+    if (!session) {
+        showLogin();
+        return;
+    }
+
+    showApp(session);
+    await checkApiHealth();
+    await loadCards();
+}
+
+startApp();

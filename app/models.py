@@ -63,6 +63,18 @@ class CardRead(BaseModel):
     assignee: str | None = None
 
 
+class LoginRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=100)
+    password: str = Field(min_length=1, max_length=200)
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    username: str
+    role: str
+
+
 class Comment(BaseModel):
     author: str = Field(min_length=1)
     text: str = Field(min_length=1)

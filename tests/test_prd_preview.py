@@ -8,6 +8,14 @@ from schemas import Breakdown, CardDraft
 
 client = TestClient(main_module.app)
 
+
+@pytest.fixture(autouse=True)
+def authenticate_admin(admin_token):
+    client.headers["Authorization"] = f"Bearer {admin_token}"
+    yield
+    client.headers.pop("Authorization", None)
+
+
 PDF_BYTES = b"%PDF-1.4\n% minimal test document\n"
 
 
