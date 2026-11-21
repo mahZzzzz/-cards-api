@@ -711,3 +711,46 @@ def test_endpoint_falls_back_when_primary_model_fails(monkeypatch):
     assert client.get(
         f"/cards/{card['id']}/comments"
     ).json() == before_comments
+
+
+def test_tool_limit_exhaustion_returns_no_proposal(monkeypatch):
+    call_count = 0
+
+    def fake_chat_completion(messages, **kwargs):
+        nonlocal call_count
+        call_count += 1
+
+        return fake_response(
+            tool_calls=[
+                make_tool_call(
+                    name="propose_create_card",
+                    arguments='{"title": "Never confirmed"}',
+                    call_id=f"call-{call_count}",
+                )
+            ]
+        )
+
+    monkeypatch.setattr(
+        assistant_service,
+        "chat_completion",
+        fake_chat_completion,
+    )
+
+    before = client.get("/cards").json()
+
+    response = client.post(
+        "/assistant/chat",
+        json={"message": "Create a card"},
+    )
+
+    assert response.status_code == 200
+
+    body = response.json()
+    assert "proposal" not in body
+    assert body["reply"] == (
+        "I couldn't complete the request within the tool limit."
+    )
+    assert call_count == 3
+
+    # No proposal may be confirmed, so the board must be untouched.
+    assert client.get("/cards").json() == before

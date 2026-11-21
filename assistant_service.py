@@ -442,9 +442,11 @@ def answer_board_request(
                 ),
             })
 
+    # Exhausting the tool budget means the request failed. Never offer a
+    # proposal the assistant did not finish validating.
     return (
         "I couldn't complete the request within the tool limit.",
-        proposal,
+        None,
     )
 
 

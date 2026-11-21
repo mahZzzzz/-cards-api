@@ -226,6 +226,18 @@ async def update_card(card_id: int, update: CardUpdate):
                     detail="Illegal card status transition"
                 )
 
+    if "title" in changes and changes["title"] is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Title cannot be null"
+        )
+
+    if "description" in changes and changes["description"] is None:
+        raise HTTPException(
+            status_code=422,
+            detail="Description cannot be null"
+        )
+
     updated_data = current_card.model_dump()
     updated_data.update(changes)
 

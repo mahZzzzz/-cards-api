@@ -544,3 +544,36 @@ def test_create_card_with_wrong_title_type_is_rejected():
         for error in response.json()["detail"]
     )
     assert client.get("/cards").json() == before
+
+
+@pytest.mark.parametrize(
+    ("field", "detail"),
+    [
+        ("title", "Title cannot be null"),
+        ("description", "Description cannot be null"),
+    ],
+)
+def test_update_with_null_field_returns_422(field, detail):
+    create_response = client.post(
+        "/cards",
+        json={
+            "title": "Null update test",
+            "description": "Original description",
+        },
+    )
+    assert create_response.status_code == 201
+    card_id = create_response.json()["id"]
+    before = client.get(f"/cards/{card_id}").json()
+
+    response = client.patch(
+        f"/cards/{card_id}",
+        json={field: None},
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {"detail": detail}
+
+    # The rejected update must not change memory or SQLite.
+    assert client.get(f"/cards/{card_id}").json() == before
+    main_module.reload_storage_from_db()
+    assert client.get(f"/cards/{card_id}").json() == before
