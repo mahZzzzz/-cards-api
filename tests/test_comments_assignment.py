@@ -251,3 +251,46 @@ def test_reject_invalid_assignee(assignee):
     )
 
     assert response.status_code == 422
+
+
+def test_create_card_with_assignee():
+    client = TestClient(app)
+
+    response = client.post(
+        "/cards",
+        json={
+            "title": "Assigned on creation",
+            "description": "Assignee supplied with the create request",
+            "assignee": "Alex",
+        },
+    )
+
+    assert response.status_code == 201
+
+    card = response.json()
+    assert card["assignee"] == "Alex"
+    assert card["status"] == "spec"
+
+    # Verify the assignment was stored with the new card.
+    response = client.get(f"/cards/{card['id']}")
+
+    assert response.status_code == 200
+    assert response.json()["assignee"] == "Alex"
+
+
+@pytest.mark.parametrize("assignee", ["", "   "])
+def test_reject_invalid_assignee_on_create(assignee):
+    client = TestClient(app)
+
+    before = client.get("/cards").json()
+
+    response = client.post(
+        "/cards",
+        json={
+            "title": "Invalid assignee on create",
+            "assignee": assignee,
+        },
+    )
+
+    assert response.status_code == 422
+    assert client.get("/cards").json() == before

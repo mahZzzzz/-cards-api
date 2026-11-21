@@ -368,3 +368,179 @@ def test_status_cannot_be_null():
 
     assert get_response.status_code == 200
     assert get_response.json()["status"] == "spec"
+
+
+STATUS_PATH = {
+    "spec": [],
+    "ready": ["ready"],
+    "in_progress": ["ready", "in_progress"],
+    "review": ["ready", "in_progress", "review"],
+    "done": ["ready", "in_progress", "review", "done"],
+}
+
+
+def move_card_to(card_id, target_status):
+    """Advance a card along the legal workflow to the requested status."""
+
+    for status in STATUS_PATH[target_status]:
+        response = client.patch(
+            f"/cards/{card_id}",
+            json={"status": status},
+        )
+        assert response.status_code == 200
+        assert response.json()["status"] == status
+
+
+@pytest.mark.parametrize(
+    ("from_status", "to_status"),
+    [
+        ("spec", "in_progress"),
+        ("spec", "review"),
+        ("spec", "done"),
+        ("ready", "spec"),
+        ("ready", "review"),
+        ("ready", "done"),
+        ("in_progress", "spec"),
+        ("in_progress", "ready"),
+        ("in_progress", "done"),
+        ("review", "spec"),
+        ("review", "ready"),
+        ("review", "in_progress"),
+        ("done", "spec"),
+        ("done", "ready"),
+        ("done", "in_progress"),
+        ("done", "review"),
+    ],
+)
+def test_illegal_status_transitions(from_status, to_status):
+    response = client.post("/cards", json={"title": "Illegal transition"})
+    assert response.status_code == 201
+    card_id = response.json()["id"]
+
+    move_card_to(card_id, from_status)
+
+    response = client.patch(
+        f"/cards/{card_id}",
+        json={"status": to_status},
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {
+        "detail": "Illegal card status transition"
+    }
+
+    # The failed transition must leave the card untouched.
+    get_response = client.get(f"/cards/{card_id}")
+    assert get_response.status_code == 200
+    assert get_response.json()["status"] == from_status
+
+
+@pytest.mark.parametrize(
+    "status",
+    ["spec", "ready", "in_progress", "review", "done"],
+)
+def test_setting_same_status_is_accepted(status):
+    response = client.post("/cards", json={"title": "Same status"})
+    assert response.status_code == 201
+    card_id = response.json()["id"]
+
+    move_card_to(card_id, status)
+    before = client.get(f"/cards/{card_id}").json()
+
+    response = client.patch(
+        f"/cards/{card_id}",
+        json={"status": status},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == before
+
+    # The no-op update must also be persisted unchanged.
+    main_module.reload_storage_from_db()
+    assert client.get(f"/cards/{card_id}").json() == before
+
+
+@pytest.mark.parametrize(
+    ("title_length", "expected_status"),
+    [(100, 201), (101, 422)],
+)
+def test_title_length_boundary(title_length, expected_status):
+    response = client.post(
+        "/cards",
+        json={"title": "t" * title_length},
+    )
+
+    assert response.status_code == expected_status
+
+    if expected_status == 201:
+        assert len(response.json()["title"]) == 100
+    else:
+        assert any(
+            error["loc"] == ["body", "title"]
+            for error in response.json()["detail"]
+        )
+
+
+def test_description_longer_than_1000_characters_is_rejected():
+    before = client.get("/cards").json()
+
+    response = client.post(
+        "/cards",
+        json={
+            "title": "Too long description",
+            "description": "d" * 1001,
+        },
+    )
+
+    assert response.status_code == 422
+    assert any(
+        error["loc"] == ["body", "description"]
+        for error in response.json()["detail"]
+    )
+    assert client.get("/cards").json() == before
+
+
+def test_create_card_with_missing_title_is_rejected():
+    before = client.get("/cards").json()
+
+    response = client.post(
+        "/cards",
+        json={"description": "No title supplied"},
+    )
+
+    assert response.status_code == 422
+    assert any(
+        error["loc"] == ["body", "title"]
+        and error["type"] == "missing"
+        for error in response.json()["detail"]
+    )
+    assert client.get("/cards").json() == before
+
+
+def test_create_card_with_malformed_json_is_rejected():
+    before = client.get("/cards").json()
+
+    response = client.post(
+        "/cards",
+        content=b'{"title": "Broken"',
+        headers={"Content-Type": "application/json"},
+    )
+
+    assert response.status_code == 422
+    assert client.get("/cards").json() == before
+
+
+def test_create_card_with_wrong_title_type_is_rejected():
+    before = client.get("/cards").json()
+
+    response = client.post(
+        "/cards",
+        json={"title": 123},
+    )
+
+    assert response.status_code == 422
+    assert any(
+        error["loc"] == ["body", "title"]
+        for error in response.json()["detail"]
+    )
+    assert client.get("/cards").json() == before
