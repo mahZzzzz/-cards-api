@@ -28,5 +28,5 @@ jobs:
 
       - name: Run automated tests with coverage
         run: |
-          python -m coverage run --source=app -m pytest tests/test_cards.py -v
+          python -m coverage run --source=app -m pytest tests/ -v  
           python -m coverage report -m
