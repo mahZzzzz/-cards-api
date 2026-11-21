@@ -631,3 +631,83 @@ def test_llm_chat_completion_falls_back_to_next_model(monkeypatch):
 
     assert attempted_models == ["first-model", "second-model"]
     assert response.choices == []
+
+
+def test_endpoint_falls_back_when_primary_model_fails(monkeypatch):
+    import llm
+
+    # Restore the real llm.chat_completion (the autouse fixture stubs it)
+    # so the endpoint exercises the model-fallback loop itself.
+    monkeypatch.setattr(
+        assistant_service,
+        "chat_completion",
+        llm.chat_completion,
+    )
+
+    card = client.post(
+        "/cards",
+        json={
+            "title": "Fallback card",
+            "description": "Must survive a model failure",
+        },
+    ).json()
+    client.post(
+        f"/cards/{card['id']}/comments",
+        json={"author": "Sam", "text": "Keep me."},
+    )
+
+    before_cards = client.get("/cards").json()
+    before_comments = client.get(
+        f"/cards/{card['id']}/comments"
+    ).json()
+
+    attempted_models = []
+
+    class FakeCompletions:
+        def create(self, model, messages, **kwargs):
+            attempted_models.append(model)
+
+            if model == "primary-model":
+                raise RuntimeError("primary model is down")
+
+            return SimpleNamespace(
+                choices=[
+                    SimpleNamespace(
+                        message=FakeAssistantMessage(
+                            content=f"The board has {len(before_cards)} card(s)."
+                        )
+                    )
+                ],
+                usage=None,
+            )
+
+    class FakeChat:
+        def __init__(self):
+            self.completions = FakeCompletions()
+
+    class FakeGroq:
+        def __init__(self, **kwargs):
+            self.chat = FakeChat()
+
+    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    monkeypatch.setattr(llm, "Groq", FakeGroq)
+    monkeypatch.setattr(
+        llm,
+        "get_models",
+        lambda: ["primary-model", "backup-model"],
+    )
+
+    response = client.post(
+        "/assistant/chat",
+        json={"message": "How many cards are on the board?"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "reply": "The board has 1 card(s)."
+    }
+    assert attempted_models == ["primary-model", "backup-model"]
+    assert client.get("/cards").json() == before_cards
+    assert client.get(
+        f"/cards/{card['id']}/comments"
+    ).json() == before_comments
